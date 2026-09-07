@@ -1,0 +1,6 @@
+recursive-include docs *.md *.json *.py *.patch
+recursive-include scripts *.py *.ps1
+recursive-include tests *.py *.md LICENSE *.typed *.pyi
+recursive-include .github *.yml
+include .gitignore
+global-exclude *.pyc

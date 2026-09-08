@@ -3,6 +3,8 @@
 import hashlib
 import json
 import os
+import re
+import shutil
 import stat
 import subprocess
 import tempfile
@@ -26,12 +28,33 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def executable():
+    selected = os.environ.get("GUARDIAN_GIT", "git")
+    found = shutil.which(selected)
+    if not found:
+        raise Failure(
+            "environment",
+            f"Git executable unavailable: {selected}. Set GUARDIAN_GIT to its full path.",
+        )
+    return str(Path(found).absolute())
+
+
+def git_info(repo):
+    version = text_git(repo, "--version")
+    match = re.search(r"git version (\d+)\.(\d+)", version)
+    if not match or tuple(map(int, match.groups())) < (2, 27):
+        raise Failure(
+            "environment", f"Guardian requires Git 2.27+: {executable()} reports {version}"
+        )
+    return {"path": executable(), "version": version, "exit_code": 0}
+
+
 def git(repo, *args, data=None, extra=None):
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0"})
     env.update(extra or {})
     result = subprocess.run(
-        ["git", "-c", "core.hooksPath=", *args],
+        [executable(), "-c", "core.hooksPath=", *args],
         cwd=repo,
         input=data,
         capture_output=True,
@@ -60,7 +83,7 @@ def safe_path(name):
     return p
 
 
-def capture(repo, names=None):
+def capture(repo, names=None, source=None):
     """Hash actual bytes, including untracked files; bypass git clean filters."""
     entries = []
     if names is None:
@@ -69,7 +92,7 @@ def capture(repo, names=None):
     for raw in filter(None, names):
         name = raw.decode("utf-8")
         safe_path(name)
-        path = repo / name
+        path = (source or repo) / name
         try:
             mode = path.lstat().st_mode
         except FileNotFoundError:
@@ -109,7 +132,12 @@ def export(repo, tree, destination):
 def snapshot(repo, base, candidate, destination):
     """Independent disposable repository, with the original baseline as HEAD."""
     export(repo, base, destination)
-    git(destination, "init", "-b", "snapshot")
+    git(destination, "init")
+    git(destination, "symbolic-ref", "HEAD", "refs/heads/snapshot")
+    git(destination, "config", "core.autocrlf", "false")
+    (destination / ".git/info/attributes").write_text(
+        "* -text -filter -ident -working-tree-encoding\n", encoding="utf-8"
+    )
     names = git(repo, "ls-tree", "-r", "--name-only", "-z", base).split(b"\0")
     git(destination, "read-tree", capture(destination, names))
     git(
@@ -141,3 +169,41 @@ def changed(repo, base, candidate):
         for s in git(repo, "diff", "--name-only", "-z", base, candidate).split(b"\0")
         if s
     ]
+
+
+def checkout_baseline(repo, head):
+    """Reconstruct Git's HEAD checkout bytes without touching any existing worktree/index.
+
+    Only built-in checkout conversion is supported. Custom filters/encodings need a
+    worker-specific baseline contract, not a permissive normalization comparison.
+    """
+    names = git(repo, "ls-tree", "-r", "--name-only", "-z", head)
+    with tempfile.TemporaryDirectory(prefix="guardian-worker-base-") as temporary:
+        destination = Path(temporary) / "files"
+        destination.mkdir()
+        env = {"GIT_INDEX_FILE": str(Path(temporary) / "index"), "GIT_WORK_TREE": str(destination)}
+        git(repo, "read-tree", head, extra=env)
+        attrs = git(
+            repo,
+            "check-attr",
+            "--cached",
+            "-z",
+            "filter",
+            "working-tree-encoding",
+            "--stdin",
+            data=names,
+            extra=env,
+        ).split(b"\0")
+        if any(value not in {b"unspecified", b"unset"} for value in attrs[2::3]):
+            raise Failure(
+                "environment",
+                "Worker baseline uses a custom filter or encoding; explicit adapter support required",
+            )
+        # Reject special entries before checkout can create links or consult submodules.
+        for row in filter(None, git(repo, "ls-tree", "-rz", head).split(b"\0")):
+            metadata, name = row.split(b"\t", 1)
+            safe_path(name.decode())
+            if metadata.split()[0] not in {b"100644", b"100755"}:
+                raise Failure("environment", "Worker baseline contains an unsupported Git entry")
+        git(repo, "checkout-index", "--all", "--force", extra=env)
+        return capture(repo, names.split(b"\0"), source=destination)

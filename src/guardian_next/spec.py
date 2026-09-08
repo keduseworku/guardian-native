@@ -22,6 +22,7 @@ AUTHOR_SCHEMA = object_schema({"test_code": STRING, "reasoning": STRING, "exampl
 REVIEW_SCHEMA = object_schema(
     {
         "ready": {"type": "boolean"},
+        "inspection_complete": {"type": "boolean"},
         "summary": STRING,
         "findings": {
             "type": "array",
@@ -101,6 +102,9 @@ def author_prompt(request, contract):
         "and likely almost-correct implementations. A named test must actually reject the bug. "
         "Do not weaken assertions to match the baseline. Tests must not edit production files, "
         "load other trials, or access external services. Use import paths supported by repo/src. "
+        "The test module is stored OUTSIDE the candidate repository; Path.cwd() is the "
+        "candidate root. Do not derive repository paths from __file__. Guardian test and "
+        "runtime artifacts are outside this root, so Git scope checks see candidate files only. "
         "Return one unittest module (no main guard needed), reasoning, "
         "and named example checks.\n"
         + "ORIGINAL REQUEST:\n"
@@ -120,7 +124,10 @@ def review_prompt(request, contract, evidence):
         "independently, numeric/collection boundaries, compatibility and failure atomicity. "
         "Prefer standard libraries and existing patterns; do not equate fewer lines or lower "
         "complexity with better engineering. Tests passing is evidence, not proof. "
-        "ready must be false for ANY required correction. Return actionable findings.\n"
+        "ready must be false for ANY required correction. If policy or unavailable tools "
+        "prevent the required inspection, set inspection_complete=false and ready=false; "
+        "explain the access failure in summary. Do not present missing inspection as a code "
+        "defect or guess an approval. Otherwise set inspection_complete=true. Return actionable findings.\n"
         "ORIGINAL REQUEST:\n"
         + request
         + "\nSPEC:\n"
@@ -161,9 +168,12 @@ def validate_review(value):
     if (
         not isinstance(value, dict)
         or type(value.get("ready")) is not bool
+        or type(value.get("inspection_complete")) is not bool
         or not isinstance(value.get("findings"), list)
     ):
         raise Failure("protocol", "Malformed reviewer response")
+    if value["ready"] and not value["inspection_complete"]:
+        raise Failure("protocol", "Reviewer approved without completing inspection")
     for finding in value["findings"]:
         if not isinstance(finding, dict) or type(finding.get("required_correction")) is not bool:
             raise Failure("protocol", "Malformed reviewer finding")

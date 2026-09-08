@@ -202,11 +202,8 @@ def uninstall(home):
 
 
 def common(repo):
-    return str(
-        Path(
-            trees.text_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")
-        ).resolve()
-    )
+    directory = Path(trees.text_git(repo, "rev-parse", "--git-common-dir"))
+    return str((Path(repo) / directory).resolve())
 
 
 def registration_path(home, repo):
@@ -214,6 +211,7 @@ def registration_path(home, repo):
 
 
 def register(home, repo, cfg):
+    git_tool = trees.git_info(repo)
     repo = trees.root(repo)
     if home.resolve().is_relative_to(repo):
         raise Failure("environment", "Guardian home must be outside the editing repository")
@@ -243,6 +241,7 @@ def register(home, repo, cfg):
             "protocol", "Check environment may not contain credentials or redirect homes/imports"
         )
     cfg.update(
+        git=git_tool["path"],
         require_doctor=True,
         author_model="gpt-5.6-sol",
         review_model="gpt-5.6-sol",
@@ -261,6 +260,13 @@ def resolve(home, cwd):
     if not path.exists():
         return None, None
     cfg = json.loads(path.read_text(encoding="utf-8"))
+    if cfg.get("git") and cfg["git"] != trees.executable():
+        raise Failure(
+            "environment",
+            "Git executable changed since registration. Set GUARDIAN_GIT to "
+            + cfg["git"]
+            + " or re-register and run doctor with the intended Git.",
+        )
     cfg["repo"] = str(repo)
     state = home / "worktrees" / digest(str(repo).encode())
     state.mkdir(parents=True, exist_ok=True)
@@ -273,7 +279,12 @@ def doctor(home, repo):
         raise Failure("environment", "Repository is not registered")
     import tempfile
 
-    report = {"platform": sys.platform, "tools": {}, "team_files_written": False}
+    report = {
+        "platform": sys.platform,
+        "tools": {},
+        "team_files_written": False,
+        "protocol": execution.DOCTOR_PROTOCOL,
+    }
     for key in ("python", "codex"):
         run = execution.bounded_run(
             [cfg[key], "--version"], cwd=Path(repo), env=os.environ.copy(), timeout=30
@@ -283,7 +294,7 @@ def doctor(home, repo):
             "version": (run.stdout + run.stderr).strip(),
             "exit_code": run.returncode,
         }
-    report["tools"]["git"] = trees.text_git(Path(repo), "--version")
+    report["tools"]["git"] = trees.git_info(Path(repo))
     report["conda"] = shutil.which("conda")
     run = execution.bounded_run(
         [
@@ -299,14 +310,26 @@ def doctor(home, repo):
     report["gitleaks"] = shutil.which("gitleaks")
     report["configured_checks"] = cfg["checks"]
     report["checks"] = []
-    with tempfile.TemporaryDirectory(prefix="guardian-doctor-") as temporary:
-        snap = Path(temporary) / "repo"
-        baseline = trees.capture(Path(repo))
-        trees.snapshot(Path(repo), baseline, baseline, snap)
-        for i, command in enumerate(cfg["checks"]):
-            report["checks"].append(execution.check(cfg, snap, command, state / f"doctor-{i}.log"))
-    report["completed"] = all(
-        t["exit_code"] == 0 for t in report["tools"].values() if isinstance(t, dict)
+    report["review_preflight"] = {"passed": False, "detail": "Not run"}
+    try:
+        with tempfile.TemporaryDirectory(prefix="guardian-doctor-") as temporary:
+            baseline = trees.capture(Path(repo))
+            for i, command in enumerate(cfg["checks"]):
+                snap = Path(temporary) / f"check-{i}"
+                trees.snapshot(Path(repo), baseline, baseline, snap)
+                report["checks"].append(
+                    execution.check(cfg, snap, command, state / f"doctor-{i}.log")
+                )
+            report["review_preflight"] = execution.review_preflight(
+                cfg, Path(temporary) / "review-probe", state / "doctor-review" / uuid.uuid4().hex
+            )
+    except (Failure, OSError) as exc:
+        report["error"] = str(exc)
+        report["failure_kind"] = getattr(exc, "kind", "environment")
+    report["completed"] = (
+        not report.get("error")
+        and report["review_preflight"]["passed"]
+        and all(t["exit_code"] == 0 for t in report["tools"].values() if isinstance(t, dict))
     )
     report["passed"] = report["completed"] and all(c["passed"] for c in report["checks"])
     report["config_hash"] = digest(json.dumps(cfg, sort_keys=True).encode())

@@ -38,6 +38,7 @@ AUTHOR = {
 }
 REVIEW = {
     "ready": True,
+    "inspection_complete": True,
     "summary": "Meets request",
     "findings": [],
     "expected_values_checked": ["value() == 2"],

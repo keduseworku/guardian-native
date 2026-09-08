@@ -31,9 +31,9 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $Archive = Get-Item dist/guardian-native-1.0.0rc4-windows.zip
+          $Archive = Get-Item dist/guardian-native-1.0.0rc5-windows.zip
           Expand-Archive $Archive.FullName "$env:RUNNER_TEMP/guardian-bundle"
-          $Bundle = "$env:RUNNER_TEMP/guardian-bundle/guardian-native-1.0.0rc4"
+          $Bundle = "$env:RUNNER_TEMP/guardian-bundle/guardian-native-1.0.0rc5"
           & "$Bundle/scripts/Install-Guardian.ps1" -Python (Get-Command python).Source -GuardianHome "$env:RUNNER_TEMP/guardian-personal" -CodexHome "$env:RUNNER_TEMP/codex-personal"
           & "$Bundle/scripts/Uninstall-Guardian.ps1" -GuardianHome "$env:RUNNER_TEMP/guardian-personal"
       - uses: actions/upload-artifact@v4

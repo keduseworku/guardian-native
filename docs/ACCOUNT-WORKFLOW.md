@@ -7,7 +7,7 @@ in [VALIDATION.md](VALIDATION.md).
 
 ## What the download does
 
-Download and extract `guardian-native-1.0.0rc4-windows.zip` outside the work repository.
+Download and extract `guardian-native-1.0.0rc5-windows.zip` outside the work repository.
 The zip contains source, tests, guidance, an offline-installable wheel, PowerShell setup
 and removal, checksums and validation evidence. You do not need the separate wheel or
 source tarball when using this zip. It includes no account credentials or work-repository

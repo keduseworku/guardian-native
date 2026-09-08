@@ -24,12 +24,27 @@ from the exact current native candidate. The worker must use a separate register
 worktree of the same repository and leave its changes uncommitted relative to that
 candidate baseline. Preserve its process exit code and JSON result locally.
 
+Before dispatch, run `worker-preflight --repo ... --session ...` with the same
+`--home` used for preparation. The current adapter requires a clean HEAD checkout:
+it reconstructs Git's checkout bytes using a temporary index and directory, including
+built-in LF/CRLF conversion, and compares them byte for byte with the native baseline.
+It never rewrites native line endings. The worker must start at the exact prepared
+commit and reconstruct the same checkout bytes. Import repeats the baseline check.
+
+Working-file content changes, untracked starting files, changed checkout settings,
+custom filters and working-tree encodings require explicit adapter support. Preserve
+those files and use direct native implementation or a separately prepared disposable
+baseline; do not discard edits to satisfy preflight. Staging itself is preserved.
+
 The expected result requires `success`, `execution_success`, `work_product_created`
 true; `failure_classification` null; `validation_provenance.status` verified with matching
 nonempty before/after snapshot IDs. `work_product` must contain success true, a worktree
 path, exact branch name, exact changed-file list and a nonempty validation list whose
 entries have outcome passed. Claims are necessary but insufficient: Guardian independently
 checks worktree identity, baseline tree, scope, file modes, byte bounds and stability.
+Skipped entries remain rejected; optional validation needs an explicit adapter contract
+before it can be distinguished from an omitted required check. Guardian always runs
+its registered team checks after import. No result normalization may waive those checks.
 
 Call the personal runtime's `worker-import --repo ... --session ... --file ...
 --exit-code ...` command with the actual result. The importer accepts ordinary files

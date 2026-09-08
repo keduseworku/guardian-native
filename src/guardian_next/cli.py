@@ -6,8 +6,8 @@ import os
 import sys
 from pathlib import Path
 
+from . import execution, spec, trees, workflow
 from . import integration as native
-from . import spec, trees, workflow
 from .trees import Failure, save
 
 
@@ -16,7 +16,8 @@ def hook(cfg, state, home, event, payload):
         doctor_path = state / "doctor.json"
         doctor = json.loads(doctor_path.read_text(encoding="utf-8")) if doctor_path.exists() else {}
         if cfg.get("require_doctor") and (
-            not doctor.get("completed")
+            doctor.get("protocol") != execution.DOCTOR_PROTOCOL
+            or not doctor.get("completed")
             or doctor.get("config_hash") != trees.digest(json.dumps(cfg, sort_keys=True).encode())
         ):
             doctor = native.doctor(home, cfg["repo"])
@@ -109,7 +110,15 @@ def main():
     doctor.add_argument("--repo", required=True)
     hooks = commands.add_parser("hook")
     hooks.add_argument("event", choices=["UserPromptSubmit", "Stop"])
-    for name in ("prepare", "classify", "status", "worker-import", "abandon", "correction"):
+    for name in (
+        "prepare",
+        "classify",
+        "status",
+        "worker-import",
+        "worker-preflight",
+        "abandon",
+        "correction",
+    ):
         command = commands.add_parser(name)
         command.add_argument("--repo", required=True)
         command.add_argument("--session", required=True)
@@ -182,6 +191,10 @@ def main():
                     task.update(status="abandoned", active=False)
                     save(state / "report.json", task)
                 result = {"abandoned": True, "files_preserved": True}
+            elif args.action == "worker-preflight":
+                from .worker import preflight
+
+                result = preflight(cfg, state, args.session)
             elif args.action == "worker-import":
                 from .worker import accept_result
 

@@ -70,7 +70,7 @@ class ReleaseTests(unittest.TestCase):
     def test_frozen_acceptance_bytes_match_recorded_code_on_every_platform(self):
         workflow.write_suite(self.repo, AUTHOR)
         self.assertEqual(
-            (self.repo / ".guardian_checks/test_acceptance.py").read_bytes(),
+            (self.repo.parent / ".guardian_checks/test_acceptance.py").read_bytes(),
             AUTHOR["test_code"].encode("utf-8"),
         )
 

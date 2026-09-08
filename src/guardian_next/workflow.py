@@ -67,8 +67,10 @@ def begin(cfg, state, payload):
             if (state / "doctor.json").exists()
             else {}
         )
-        if not doctor.get("completed") or doctor.get("config_hash") != trees.digest(
-            json.dumps(cfg, sort_keys=True).encode()
+        if (
+            doctor.get("protocol") != execution.DOCTOR_PROTOCOL
+            or not doctor.get("completed")
+            or doctor.get("config_hash") != trees.digest(json.dumps(cfg, sort_keys=True).encode())
         ):
             raise Failure(
                 "environment",
@@ -157,14 +159,16 @@ def evidence_dir(state, task):
     return path
 
 
-def acceptance_command(cfg):
-    return [cfg["python"], "-m", "unittest", "discover", "-s", ".guardian_checks", "-v"]
+def acceptance_command(cfg, snap=None):
+    directory = str(snap.parent / ".guardian_checks") if snap else ".guardian_checks"
+    return [cfg["python"], "-m", "unittest", "discover", "-s", directory, "-v"]
 
 
 def write_suite(snap, suite):
-    tests = snap / ".guardian_checks"
+    tests = snap.parent / ".guardian_checks"
     tests.mkdir(exist_ok=True)
     (tests / "test_acceptance.py").write_text(suite["test_code"], encoding="utf-8", newline="\n")
+    return tests / "test_acceptance.py"
 
 
 def author_suite(cfg, state, task, contract, base, correction=None):
@@ -185,8 +189,10 @@ def author_suite(cfg, state, task, contract, base, correction=None):
                 )
             )
         )
-        write_suite(snap, authored)
-        baseline = execution.check(cfg, snap, acceptance_command(cfg), output / "baseline.log")
+        test_path = write_suite(snap, authored)
+        baseline = execution.check(
+            cfg, snap, acceptance_command(cfg, snap), output / "baseline.log", protected=[test_path]
+        )
     return dict(
         authored=authored,
         baseline=baseline,
@@ -256,9 +262,11 @@ def snapshot_check(cfg, task, candidate, command, output, suite=None):
     with tempfile.TemporaryDirectory(prefix="guardian-check-") as temporary:
         snap = Path(temporary) / "repo"
         snapshot(Path(cfg["repo"]), task["base"], candidate, snap)
+        protected = []
         if suite:
-            write_suite(snap, suite["authored"])
-        return execution.check(cfg, snap, command, output)
+            protected.append(write_suite(snap, suite["authored"]))
+            command = acceptance_command(cfg, snap)
+        return execution.check(cfg, snap, command, output, protected=protected)
 
 
 def adjudicate(cfg, state, task, candidate, index, failure):
@@ -268,12 +276,15 @@ def adjudicate(cfg, state, task, candidate, index, failure):
     with tempfile.TemporaryDirectory(prefix="guardian-dispute-") as temporary:
         snap = Path(temporary) / "repo"
         snapshot(Path(cfg["repo"]), task["base"], candidate, snap)
-        write_suite(snap, suite["authored"])
+        test_path = write_suite(snap, suite["authored"])
         prompt = (
             "Investigate this failed acceptance against the ORIGINAL REQUEST. Read code and "
             "test, independently derive expected behavior. Classify code, tests, environment, "
             "or unclear. A tests verdict requires a concrete demonstrable test defect and "
             "corrected expectation. Never excuse incorrect code or weaken a requirement.\n"
+            + "Frozen test module outside the candidate: "
+            + str(test_path)
+            + "\n"
             + json.dumps(
                 dict(
                     request=task["request"],
@@ -372,6 +383,8 @@ def evaluate(cfg, state, task, candidate):
             )
         )
         task["review"] = verdict
+        if not verdict["inspection_complete"]:
+            raise Failure("environment", "Independent review incomplete: " + verdict["summary"])
         if not verdict["ready"]:
             raise Failure("candidate", json.dumps(verdict))
     if capture(repo) != candidate or trees.text_git(repo, "rev-parse", "HEAD") != task["head"]:

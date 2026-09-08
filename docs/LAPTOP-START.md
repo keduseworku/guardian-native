@@ -1,3 +1,9 @@
+# Prefer the isolated trial first
+
+For the local repair candidate, start with [ISOLATED-TRIAL.md](ISOLATED-TRIAL.md).
+The setup below targets everyday-profile integration and requires that separate user
+decision after isolated acceptance. It is not needed to continue testing.
+
 # Laptop start
 
 Download the complete Windows zip linked from README.md. Extract it into a user folder

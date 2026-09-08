@@ -10,6 +10,31 @@ from .trees import Failure
 MAX_BYTES = 16 * 1024 * 1024
 
 
+def baseline(repo, task):
+    head = trees.text_git(repo, "rev-parse", "HEAD")
+    if head != task["head"]:
+        raise Failure("protocol", "Native HEAD changed since preparation")
+    native = trees.capture(repo)
+    if trees.checkout_baseline(repo, head) != native:
+        raise Failure(
+            "protocol",
+            "Worker requires the unchanged HEAD checkout, including Git's configured "
+            "line endings. Native edits/untracked files or checkout-setting changes need a "
+            "worker that supports that exact baseline; do not discard or normalize user files.",
+        )
+    return native
+
+
+def preflight(cfg, state, session):
+    with workflow.locked(state):
+        task = workflow.owned(state, session)
+        if not task["acceptance"] or task.get("needs_amendment") or task.get("pending_prompt"):
+            raise Failure("protocol", "Prepare current acceptance before worker dispatch")
+        if task.get("mode") in {"discussion", "waiting"}:
+            raise Failure("protocol", "Worker dispatch requires an implementation turn")
+        return {"ready": True, "baseline": baseline(Path(cfg["repo"]), task), "head": task["head"]}
+
+
 def content(repo, name):
     trees.safe_path(name)
     path = repo / name
@@ -43,11 +68,21 @@ def accept_result(cfg, state, session, result, exit_code):
             not task["acceptance"]
             or task.get("needs_amendment")
             or task.get("pending_prompt")
-            or task.get("mode") == "discussion"
+            or task.get("mode") in {"discussion", "waiting"}
         ):
             raise Failure("protocol", "Worker integration requires prepared, current acceptance")
         if type(exit_code) is not int or exit_code != 0:
-            raise Failure("environment", "Worker process did not exit successfully")
+            raise Failure(
+                "environment",
+                "Worker execution failed before import: "
+                + json.dumps(
+                    {
+                        "exit_code": exit_code,
+                        "failure_classification": result.get("failure_classification"),
+                        "work_product_created": result.get("work_product_created"),
+                    }
+                ),
+            )
         for field in ("success", "execution_success", "work_product_created"):
             if result.get(field) is not True:
                 raise Failure("protocol", "Worker does not confirm " + field)
@@ -79,14 +114,15 @@ def accept_result(cfg, state, session, result, exit_code):
         branch = trees.text_git(worker, "branch", "--show-current")
         if not branch or branch != product.get("branch"):
             raise Failure("protocol", "Worker branch differs from result")
-        baseline = trees.capture(repo)
+        native_base = baseline(repo, task)
         worker_head = trees.text_git(worker, "rev-parse", "HEAD")
-        if trees.text_git(worker, "rev-parse", "HEAD^{tree}") != baseline:
+        if (
+            worker_head != task["head"]
+            or trees.checkout_baseline(worker, worker_head) != native_base
+        ):
             raise Failure("protocol", "Worker baseline differs from native candidate; redispatch")
-        if trees.text_git(repo, "rev-parse", "HEAD") != task["head"]:
-            raise Failure("protocol", "Native HEAD changed since preparation")
         candidate = trees.capture(worker)
-        changed = trees.changed(worker, baseline, candidate)
+        changed = trees.changed(worker, native_base, candidate)
         declared = product.get("changed_files")
         allowed = task["contract"]["allowed_paths"]
         if (
@@ -106,8 +142,12 @@ def accept_result(cfg, state, session, result, exit_code):
             or not checks
             or not all(isinstance(c, dict) and c.get("outcome") == "passed" for c in checks)
         ):
-            raise Failure("protocol", "Worker validation is missing or failed")
-        for line in trees.text_git(worker, "diff", "--raw", baseline, candidate).splitlines():
+            raise Failure(
+                "protocol",
+                "Worker validation is missing, failed, or skipped; optional "
+                "checks need an explicit adapter contract. Required checks are never waived.",
+            )
+        for line in trees.text_git(worker, "diff", "--raw", native_base, candidate).splitlines():
             old, new = line.split()[:2]
             if old.lstrip(":") not in {"000000", "100644"} or new not in {"000000", "100644"}:
                 raise Failure("protocol", "Worker import supports ordinary file modes only")
@@ -116,7 +156,7 @@ def accept_result(cfg, state, session, result, exit_code):
         if sum(len(b or b"") for b in after.values()) > MAX_BYTES:
             raise Failure("protocol", "Worker delta exceeds 16 MB")
         if (
-            trees.capture(repo) != baseline
+            trees.capture(repo) != native_base
             or trees.capture(worker) != candidate
             or trees.text_git(worker, "rev-parse", "HEAD") != worker_head
         ):
@@ -142,7 +182,7 @@ def accept_result(cfg, state, session, result, exit_code):
             worker_task_id=result.get("task_id"),
             worker_branch=branch,
             worker_head=worker_head,
-            baseline=baseline,
+            baseline=native_base,
             candidate=candidate,
             result_sha256=trees.digest(json.dumps(result, sort_keys=True).encode()),
             changed_files=changed,

@@ -9,10 +9,13 @@ import signal
 import subprocess
 import threading
 import time
+import uuid
 from contextlib import suppress
 from pathlib import Path
 
-from .trees import Failure, capture, git, save
+from .trees import Failure, capture, digest, executable, git, save
+
+DOCTOR_PROTOCOL = 2
 
 
 def GuardianError(message):
@@ -122,7 +125,8 @@ def bounded_run(
 def environment(cwd, authenticated=False):
     keep = {"PATH", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TMP", "TEMP", "TMPDIR"}
     env = {k: v for k, v in os.environ.items() if k.upper() in keep}
-    home = Path.home() if authenticated else cwd / ".runtime"
+    env["PATH"] = os.pathsep.join([str(Path(executable()).parent), env.get("PATH", "")])
+    home = Path.home() if authenticated else cwd.parent / ".guardian-runtime"
     env.update(
         {
             "HOME": str(home),
@@ -131,6 +135,7 @@ def environment(cwd, authenticated=False):
             "PYTHONIOENCODING": "utf-8",
             "PYTHONDONTWRITEBYTECODE": "1",
             "GIT_TERMINAL_PROMPT": "0",
+            "GIT_OPTIONAL_LOCKS": "0",
             "PIP_NO_INDEX": "1",
             "UV_OFFLINE": "1",
         }
@@ -202,15 +207,95 @@ def ask(cfg, cwd, prompt, schema, output, role):
         save(output / "receipt.json", receipt)
 
 
-def check(cfg, cwd, argv, output):
+def review_preflight(cfg, cwd, output):
+    """Exercise the actual read-only reviewer on a synthetic Git/byte challenge.
+
+    Passing proves this session can inspect the fixture, not that future policy or
+    model behavior cannot change. No candidate approval is produced by this probe.
+    """
+    cwd.mkdir()
+    git(cwd, "init")
+    (cwd / "tracked.bin").write_bytes(uuid.uuid4().bytes + b"\r\n")
+    git(cwd, "read-tree", capture(cwd))
+    git(
+        cwd,
+        "-c",
+        "user.name=Guardian",
+        "-c",
+        "user.email=guardian@localhost",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "-m",
+        "Inspection preflight",
+    )
+    (cwd / "tracked.bin").write_bytes(uuid.uuid4().bytes + b"\x00\r\n")
+    (cwd / "untracked.txt").write_bytes(uuid.uuid4().hex.encode())
+    diff_args = ["diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD"]
+    expected = {
+        "head": git(cwd, "rev-parse", "HEAD").decode().strip(),
+        "diff_sha256": digest(git(cwd, *diff_args)),
+        "file_sha256": digest((cwd / "tracked.bin").read_bytes()),
+        "untracked": git(cwd, "ls-files", "--others", "--exclude-standard").decode().strip(),
+    }
+    git_argv = [executable(), "-c", "core.hooksPath=", "-c", "core.fsmonitor=false"]
+    program = (
+        "import hashlib,json,subprocess; from pathlib import Path; "
+        + "g="
+        + repr(git_argv)
+        + "; "
+        + "run=lambda a:subprocess.check_output(g+a); "
+        + "print(json.dumps({'head':run(['rev-parse','HEAD']).decode().strip(),"
+        + "'diff_sha256':hashlib.sha256(run("
+        + repr(diff_args)
+        + ")).hexdigest(),"
+        + "'file_sha256':hashlib.sha256(Path('tracked.bin').read_bytes()).hexdigest(),"
+        + "'untracked':run(['ls-files','--others','--exclude-standard']).decode().strip()}))"
+    )
+    schema = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {key: {"type": "string"} for key in expected},
+        "required": list(expected),
+    }
+    prompt = (
+        "Preflight only: this disposable repository contains synthetic data. Use your command "
+        "tool to execute this exact argv in the current directory, then return its JSON output. "
+        "This checks read-only Git and exact byte inspection before implementation. Make no "
+        "edits. If the command is denied or unavailable, return 'unavailable' for every field; "
+        "do not guess values or request weaker permissions. argv:\n"
+        + json.dumps([cfg["python"], "-c", program])
+    )
+    observed = ask(cfg, cwd, prompt, schema, output, "review")
+    passed = observed == expected
+    result = {
+        "passed": passed,
+        "expected": expected,
+        "observed": observed,
+        "detail": "Read-only Git and byte inspection succeeded"
+        if passed
+        else "Reviewer could not demonstrate read-only Git and byte inspection; inspect preflight evidence before implementation",
+        "evidence": str(output),
+    }
+    save(output / "verification.json", result)
+    return result
+
+
+def check(cfg, cwd, argv, output, protected=()):
     """Repository programs run only inside the native OS sandbox, never with auth env."""
+    env = environment(cwd)
+    permissions = (
+        'permissions.guardian-check.filesystem={":root"="read",":workspace_roots"="write",'
+        + json.dumps(env["HOME"])
+        + '="write"}'
+    )
     args = [
         cfg["codex"],
         "sandbox",
         "--permission-profile",
         "guardian-check",
         "-c",
-        'permissions.guardian-check.filesystem={":root"="read",":workspace_roots"="write"}',
+        permissions,
         "--cd",
         str(cwd),
         "--sandbox-state-disable-network",
@@ -220,7 +305,6 @@ def check(cfg, cwd, argv, output):
     if os.name == "nt":
         args += ["-c", 'windows.sandbox="unelevated"']
     args += ["--", *argv]
-    env = environment(cwd)
     env.update(cfg.get("check_env", {}))
     # Conda DLLs and console scripts must resolve to the registered interpreter.
     python_dir = str(Path(cfg["python"]).parent)
@@ -234,10 +318,13 @@ def check(cfg, cwd, argv, output):
     )
     source_paths = git(cwd, "ls-files", "-c", "-o", "--exclude-standard", "-z").split(b"\0")
     before = capture(cwd, source_paths)
+    protected_before = {path: path.read_bytes() for path in protected}
     result = bounded_run(args, cwd=cwd, env=env, timeout=cfg.get("test_seconds", 120))
     log = result.stdout + result.stderr
     output.write_text(log, encoding="utf-8")
-    if capture(cwd, source_paths) != before:
+    if capture(cwd, source_paths) != before or any(
+        not path.is_file() or path.read_bytes() != data for path, data in protected_before.items()
+    ):
         raise Failure(
             "protocol", "Check modified the candidate or frozen test source: " + str(output)
         )

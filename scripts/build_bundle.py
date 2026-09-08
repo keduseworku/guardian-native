@@ -7,7 +7,7 @@ import zipfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-version = "1.0.0rc4"
+version = "1.0.0rc5"
 out = root / "dist"
 wheels = list(out.glob(f"guardian_native-{version}-*.whl"))
 if len(wheels) != 1:

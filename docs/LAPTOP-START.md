@@ -1,27 +1,27 @@
 # Laptop start
 
-Use this repository's public GitHub release's complete Windows zip. Extract it into a personal
-folder outside the target repository. Open that folder in Codex and paste the prompt below. This is
-a one-time setup/acceptance task; normal coding requests should then run the workflow
-automatically. Store local artifacts in the work device's permitted locations. Acceptance
-and review use the configured Codex model service and may process relevant source, prompts
+Download the complete Windows zip linked from README.md. Extract it into a user folder
+outside the target repository. Open the extracted folder in Codex and paste the prompt
+below to install Guardian and validate it with a disposable task. After setup, normal
+coding requests run the workflow automatically. Store local artifacts in the work device's
+permitted locations. Acceptance and review use the configured Codex model service and may process relevant source, prompts
 and test evidence; local artifact storage does not mean offline model processing.
 The runtime and methods discover the target interpreter and check commands.
 Compatibility with an existing worker must be established on the target device.
 
-> Set up this Guardian Native release on this Windows laptop. Read README.md and all
-> documents under docs first. Inspect the installed Codex CLI/version, user and managed
-> configuration, existing user/project hooks and rules, Git, Python installations and
-> the team's active Python environment (including Conda if used). Preserve existing configuration and team files.
-> Use the work account already signed in on this device. Do not transfer a personal-device
-> login or development evidence. Confirm which account/provider the child model roles
-> actually use, since they omit user config; report a mismatch before using work source.
+> Install and validate Guardian Native on this Windows laptop. Read README.md and
+> docs/ACCOUNT-WORKFLOW.md, docs/DESIGN.md and docs/WORKER.md. Inspect the Codex CLI/version,
+> user and managed configuration, user/project hooks and rules, Git, Python installations and
+> the team's active Python environment (including Conda if used). Preserve configuration
+> and team files.
+> Use the work account signed in on this device. Confirm which account/provider the child
+> model roles actually use, since they omit user config; report a mismatch before using work source.
 > Use an existing standard-user Python 3.11+ for Guardian's separate runtime, and the
 > actual team interpreter for repository checks; these may be different interpreters.
 > Verify release checksums and run scripts/Install-Guardian.ps1 with the detected Python
 > path. Do not install WSL or request administrator rights. If corporate policy blocks
-> a needed step, report the concrete restriction. Identify overlapping old Guardian
-> hooks; do not run two controllers on the same task. Preserve team hooks.
+> a needed step, report the concrete restriction. Verify that each Guardian hook is
+> installed once and preserve other configured hooks.
 >
 > In a disposable repository with synthetic input first, capture one raw UserPromptSubmit
 > payload in a local temporary file before repository registration. Confirm cwd, session_id
@@ -47,8 +47,7 @@ Compatibility with an existing worker must be established on the target device.
 > on an exact disposable snapshot. Include the team's import contracts, coverage gates
 > and secret scan when available; do not invent rules or make every optional tool mandatory.
 > For meaningful numerical/parser/stateful work, verify Hypothesis in that environment.
-> Record results and concrete
-> blockers locally. Treat this request as authorization for reversible personal setup
+> Record results and concrete blockers locally. Treat this request as authorization for reversible personal setup
 > and acceptance work. Do not publish corporate files or alter shared team configuration.
 
 ## Direct commands, when useful
@@ -127,7 +126,7 @@ An interrupted evaluation is unverified. Inspect the report before retrying; nev
 locks use the operating system and release when their owning process exits. A yielded
 preparation command must be polled to completion, not restarted while still active. Another
 session cannot take over unfinished work in the same checkout. Resume the owning task,
-use a separate native worktree, or explicitly abandon the old Guardian task while
+use a separate native worktree, or explicitly abandon the unfinished Guardian task while
 preserving its files. Changes to requirements use clarify and retain earlier valid
 acceptance. Contradictory requirements need an explicit resolved specification; an
 ordinary ready verdict does not erase them.

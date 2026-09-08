@@ -63,12 +63,11 @@ procedures rather than auto-generating files or installing overlapping workflow 
 
 Provision repository-appropriate checks for the language and task. Complexity is reported to the reviewer; it does not consume a repair attempt.
 
-## Source boundary
+## Bundled methods
 
-The Pocock methods here were preserved from the prior pinned, attributed adaptations.
-This native release removes their obsolete daemon, graph and export instructions. See
-`pocock/PROVENANCE.md` and its license for upstream attribution. PONYTAIL.md preserves
-the complete supplied policy. Only the selected method resources and their attribution are distributed.
+The bundled Pocock methods are pinned adaptations for native Codex workflows. See
+`pocock/PROVENANCE.md` for source identifiers, distributed hashes and attribution.
+PONYTAIL.md contains the complete bundled Ponytail guidance.
 
 ## Registered tools and local feedback
 

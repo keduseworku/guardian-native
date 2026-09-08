@@ -2,8 +2,7 @@
 
 Guardian provides user-scoped installation and registration, unique preparation inputs,
 turn classification, independent acceptance, exact-candidate review and an expected
-worker-result adapter. This public repository begins with a source snapshot of the
-existing tool; see [provenance](PROVENANCE.md).
+worker-result adapter.
 
 ## Exact-candidate workflow
 

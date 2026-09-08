@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-wheel = next((root / "dist").glob("guardian_native-1.0.0rc3-*.whl"))
+wheel = next((root / "dist").glob("guardian_native-1.0.0rc4-*.whl"))
 source = root / "src/guardian_next"
 with zipfile.ZipFile(wheel) as archive:
     expected = {p for p in source.rglob("*") if p.is_file() and p.suffix in {".py", ".md"}}

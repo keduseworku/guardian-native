@@ -1,22 +1,21 @@
 # Guardian on the work Codex account
 
-This release candidate is ready for a disposable laptop trial. The actual work account,
-native Windows hooks/sandbox, team environment and existing worker still require that
-trial. Start with [LAPTOP-START.md](LAPTOP-START.md); the source/CI checks are documented
+Set up Guardian by validating the work account,
+native Windows hooks/sandbox, team environment and worker in a disposable repository.
+Start with [LAPTOP-START.md](LAPTOP-START.md); the source/CI checks are documented
 in [VALIDATION.md](VALIDATION.md).
 
 ## What the download does
 
-Download and extract `guardian-native-1.0.0rc3-windows.zip` outside the work repository.
+Download and extract `guardian-native-1.0.0rc4-windows.zip` outside the work repository.
 The zip contains source, tests, guidance, an offline-installable wheel, PowerShell setup
 and removal, checksums and validation evidence. You do not need the separate wheel or
 source tarball when using this zip. It includes no account credentials or work-repository
-source. Its retained test fixtures are public/synthetic; the worker adapter represents
+source. Its test fixtures are public/synthetic; the worker adapter represents
 an expected interface whose live compatibility remains to be tested.
 
 Open the extracted folder in Codex on the work device and paste the laptop-start prompt.
-Use the work account already signed in there. The package does not include
-a login, conversations or development evidence from another device. Guardian launches the
+Use the work account already signed in there. Guardian launches the
 installed Codex CLI for acceptance and review, using the authentication available through
 that device's Codex home. It does not log in for you or select an organization/workspace.
 Verify the effective account/provider during disposable acceptance: child roles omit
@@ -98,7 +97,7 @@ unverified hook/capture result is a defect to resolve before work-repository reg
 
 Discussion retains unfinished work. Resuming the same requirements retains acceptance;
 new or corrected requirements need classification and additional pre-edit acceptance.
-Relevant detailed methods load on demand. Negative-control guidance and the two retained
+Relevant detailed methods load on demand. Negative-control guidance and the two
 fixture tests do not mean every task automatically runs a mutation-testing stage.
 
 ## Files and data on the work device

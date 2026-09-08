@@ -1,12 +1,12 @@
-# Existing worker integration
+# Worker integration
 
-Guardian contains a port of the older runtime's result importer. It does not invent a
-worker launch CLI or replace the worker's proposal, execution, validation or ledger.
-This adapter is intended for an existing worker whose actual interface is validated
-on the deployment device. It does not contain that worker's source implementation.
-The actual worker interface must be inspected on the laptop. Its result envelope below
-is the adapter's current expectation; a mismatch needs an explicit adapter change and
-regression before use. Synthetic tests alone do not establish real worker compatibility.
+Guardian imports bounded code changes from a worker running in a separate Git worktree.
+The worker owns launching, proposals, execution and its result record. Guardian checks
+the result and independently validates the integrated candidate.
+
+Inspect the worker's interface on the target device and compare its result with the
+envelope below. A mismatch requires an adapter change and regression before use.
+Complete the real disposable worker trial to establish compatibility.
 
 The worker launcher must explicitly select **Luna only**. Guardian's importer does not
 launch the worker or verify its model. Retain the actual dispatch settings/receipt to

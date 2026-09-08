@@ -40,6 +40,5 @@ repository. Ancillary scripts, UI manifests and unrelated tracker templates are 
 | skills/productivity/handoff/SKILL.md | 7c62de979fdc7ac32fb5ddb2146156c917f80ee070d30fadc9d40343c4b6ed25 | handoff/METHOD.md | 56376473da68ed5ea18cd9cb74964a50b25af198521ad374f3c91c569a0e821f |
 | skills/engineering/setup-matt-pocock-skills/SKILL.md | 2bcd89e97777cdb705914424e39c97d5db524c8eb4eafac8120778a07774f0ec | setup-matt-pocock-skills/METHOD.md | 6a75f5249f7ca7a21b38afaa2ca73819e1c4c701100abd25189e5b10af316c20 |
 
-Rework adaptation on 2026-09-06: removed obsolete daemon, graph and task-deliver instructions. The distributed hashes above identify these revised adaptations.
-
-Editorial revision on 2026-09-07: setup guidance discovers deployment-specific tooling instead of naming one intended work environment. Source attribution and the original hash are unchanged; the distributed hash identifies this revision.
+The distributed methods use native snapshots, local planning and discovery of the
+target environment. The hashes identify the upstream source and packaged adaptations.

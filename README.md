@@ -5,15 +5,16 @@ It captures the request, prepares acceptance before edits, and checks the comple
 code against the request and your repository's required checks. Corrections trigger
 bounded repair. Implementation stays in the native checkout with staging preserved.
 
-## Test the local repair candidate
+## Test the repair candidate
 
-This checkout is the **1.0.0rc5 local repair candidate**, pending a complete Windows
-worker acceptance run. Use its built `guardian-native-1.0.0rc5-windows.zip` and follow
+This checkout is the **1.0.0rc5 repair candidate**, pending a complete work-laptop
+worker acceptance run. Download `guardian-native-1.0.0rc5-windows.zip` from the
+[rc5 release](https://github.com/keduseworku/guardian-native/releases/tag/native-1.0.0rc5) and follow
 [ISOLATED-TRIAL.md](docs/ISOLATED-TRIAL.md). The trial uses a disposable repository and
 temporary configuration; everyday-profile integration is a separate decision.
 
-The [published releases](https://github.com/keduseworku/guardian-native/releases) may
-contain an earlier version. Do not treat earlier CI results as verification of this candidate.
+Use the exact version and checksums listed on that release. CI verifies automated
+regressions and packaging; it does not certify your worker installation or desktop profile.
 
 Setup needs a signed-in Codex installation with its CLI, Git 2.27+ and Python 3.11+.
 The installer creates a separate Python environment and installs the bundled wheel

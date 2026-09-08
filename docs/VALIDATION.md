@@ -1,15 +1,15 @@
 # Validation scope
 
-The local repair candidate has 60 focused regression tests. Release verification runs those
+The repair candidate has 60 focused regression tests. Release verification runs those
 tests, Ruff lint/format checks, source/wheel byte comparison, fresh offline wheel
 installation and integration install/removal in disposable user directories.
 The CI matrix repeats the checks on Windows, Linux and macOS with Python 3.11 and 3.12.
 Both Windows jobs also extract the complete zip and execute the PowerShell installer
 and removal scripts with temporary user directories.
 
-The matrix configuration is retained; local rc5 results do not establish that matrix
-has run for rc5. Published results are available on the
+Release notes link the corresponding matrix run on the
 [Actions page](https://github.com/keduseworku/guardian-native/actions).
+Match the run's commit to the release tag; earlier results do not verify later changes.
 
 Lifecycle tests cover unique inputs, native worktrees, original intent through follow-up
 turns, interruption, stale evidence, bounded repairs, acceptance disputes and preservation
@@ -28,7 +28,8 @@ Laptop regressions exercise real Git checkout conversion with `core.autocrlf` an
 `.gitattributes`, binary preservation, dirty/untracked baseline rejection, different
 worker commits, unsupported custom filters, and index preservation. Git 2.27 option
 compatibility is tested with an adapter that rejects newer options; this does not claim
-execution on a real Git 2.27 binary or on Windows. Other controls check that acceptance
+execution on a real Git 2.27 binary. Windows matrix tests use the runner's installed Git.
+Other controls check that acceptance
 and runtime files do not appear among candidate files, external test-source mutations
 are rejected, denied reviewer preflight prevents preparation, and later inspection
 failure does not consume a code-repair attempt.
